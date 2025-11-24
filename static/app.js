@@ -1,3 +1,12 @@
+/**
+ * P2P File Transfer App
+ * Modular architecture for better maintainability
+ */
+
+// --- Configuration ---
+// Replace with your deployed server URL (e.g., 'https://your-app.onrender.com')
+const SIGNALING_SERVER_URL = '';
+
 // --- UI Manager ---
 const UI = {
     elements: {
