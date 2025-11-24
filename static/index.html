@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Share - Secure File Transfer</title>
+    <link rel="stylesheet" href="static/style.css">
+    <link rel="manifest" href="static/manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <span class="material-icons-round">share</span>
+                </div>
+                <h1>P2P Share</h1>
+            </div>
+            <div class="connection-pill" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Toast Notifications -->
+            <div class="toast-container" id="toastContainer"></div>
+
+            <!-- Welcome / Join Screen -->
+            <section id="joinScreen" class="screen active">
+                <div class="glass-card hero-card">
+                    <h2>Share Files Instantly</h2>
+                    <p class="subtitle">Secure, peer-to-peer transfer. No size limits. No cloud.</p>
+
+                    <div class="actions-container">
+                        <button id="createBtn" class="btn primary large">
+                            <span class="material-icons-round">add_circle</span>
+                            Create New Room
+                        </button>
+
+                        <div class="divider">
+                            <span>OR</span>
+                        </div>
+
+                        <div class="join-form">
+                            <div class="input-wrapper">
+                                <span class="material-icons-round input-icon">vpn_key</span>
+                                <input type="text" id="roomInput" placeholder="Enter Room ID" autocomplete="off">
+                            </div>
+                            <button id="joinBtn" class="btn secondary">Join Room</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Transfer Screen -->
+            <section id="transferScreen" class="screen hidden">
+                <div class="glass-card room-header">
+                    <div class="room-info">
+                        <span class="label">Current Room</span>
+                        <div class="code-display" id="roomIdDisplay" title="Click to copy">
+                            <span class="code-text">...</span>
+                            <span class="material-icons-round copy-icon">content_copy</span>
+                        </div>
+                    </div>
+                    <button id="leaveBtn" class="btn danger small" title="Leave Room">
+                        <span class="material-icons-round">logout</span>
+                    </button>
+                </div>
+
+                <div class="transfer-workspace">
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-content">
+                            <span class="material-icons-round upload-icon">cloud_upload</span>
+                            <h3>Drop files here</h3>
+                            <p>or click to browse</p>
+                        </div>
+                        <input type="file" id="fileInput" multiple hidden>
+                    </div>
+
+                    <div class="file-list-container">
+                        <div class="list-header">
+                            <h3>Transfers</h3>
+                            <span class="badge" id="transferCount">0</span>
+                        </div>
+                        <div class="file-list" id="fileList">
+                            <!-- File items will be injected here -->
+                            <div class="empty-state" id="emptyState">
+                                <span class="material-icons-round">folder_open</span>
+                                <p>No active transfers</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="static/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(reg => console.log('SW registered:', reg.scope))
+                    .catch(err => console.log('SW registration failed:', err));
+            });
+        }
+    </script>
+</body>
+
+</html>
