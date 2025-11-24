@@ -20,7 +20,7 @@ logger = logging.getLogger("P2P-Server")
 rooms = {}
 
 async def index(request):
-    return web.Response(text="P2P Signaling Server Running")
+    return web.FileResponse('./static/index.html')
 
 async def get_config(request):
     """
@@ -147,6 +147,7 @@ cors = aiohttp_cors.setup(app, defaults={
 app.router.add_get('/', index)
 app.router.add_get('/config', get_config)
 app.router.add_get('/ws', websocket_handler)
+app.router.add_static('/static', './static')
 
 # Apply CORS to all routes
 for route in list(app.router.routes()):

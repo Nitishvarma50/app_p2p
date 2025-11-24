@@ -16,7 +16,15 @@ The signaling server must be online for devices to find each other.
     *   **Start Command**: `python server.py`
 6.  Click **Create Web Service**.
 7.  **Copy the URL** (e.g., `https://p2p-transfer.onrender.com`).
-8.  **Update `static/app.js`**: Paste this URL into the `SIGNALING_SERVER_URL` constant.
+
+### Option B: Custom Domain (https://www.airsetu.in)
+If you want to use your own domain:
+1.  In Render Dashboard, go to **Settings** > **Custom Domains**.
+2.  Click **Add Custom Domain** and enter `www.airsetu.in`.
+3.  Render will show you **DNS Records** (usually a CNAME pointing to `onrender.com`).
+4.  Go to your Domain Registrar (where you bought the domain) and add these records.
+5.  Wait for SSL generation (automatic).
+6.  **Update `static/app.js`**: Ensure `SIGNALING_SERVER_URL` is set to `'https://www.airsetu.in'`.
 
 ## 2. Build the Mobile App (iOS/Android)
 We use **Capacitor** to wrap your web app.
