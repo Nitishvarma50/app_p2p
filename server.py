@@ -145,13 +145,11 @@ cors = aiohttp_cors.setup(app, defaults={
 
 # Add routes
 app.router.add_get('/', index)
-app.router.add_get('/config', get_config)
-app.router.add_get('/ws', websocket_handler)
 app.router.add_static('/static', './static')
 
-# Apply CORS to all routes
-for route in list(app.router.routes()):
-    cors.add(route)
+# API Routes (Need CORS)
+cors.add(app.router.add_get('/config', get_config))
+cors.add(app.router.add_get('/ws', websocket_handler))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="P2P File Transfer Server")
