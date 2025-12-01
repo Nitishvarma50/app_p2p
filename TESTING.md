@@ -105,3 +105,68 @@ If you cannot generate certificates, you can force Chrome to allow WebRTC over H
     *   Check the browser console (F12) for errors.
 *   **Mobile Safari Issues**:
     *   Ensure you are using **HTTPS**. iOS is very strict about WebRTC permissions.
+
+---
+
+## Scenario 4: Mobile Testing (Android & iOS)
+
+You can test the app on mobile devices either via a mobile browser or as a native app using Capacitor.
+
+### A. Mobile Browser Testing
+
+This is the quickest way to test without installing build tools.
+
+**Requirements:**
+*   **HTTPS is MANDATORY**. You cannot use the camera/microphone or transfer files via WebRTC on a mobile browser over HTTP (unless using localhost, which isn't possible from an external device).
+*   Follow **Scenario 2** to set up the HTTPS server.
+
+**Steps:**
+1.  **Start HTTPS Server**: `python server.py --cert cert.pem --key key.pem --port 8080`
+2.  **Connect to Wi-Fi**: Ensure your phone and PC are on the same network.
+3.  **Open Browser**:
+    *   **iOS (Safari)**: Navigate to `https://<YOUR_PC_IP>:8080`.
+        *   *Note*: You will see a "Not Secure" warning. Click "Show Details" -> "visit this website" to bypass it.
+    *   **Android (Chrome)**: Navigate to `https://<YOUR_PC_IP>:8080`.
+        *   *Note*: Click "Advanced" -> "Proceed to <IP> (unsafe)".
+
+### B. Native App Testing (Capacitor)
+
+This allows you to test the application as a real installed app.
+
+**Prerequisites:**
+*   **Node.js** installed.
+*   **Android**: Android Studio installed.
+*   **iOS**: Xcode installed (Mac only).
+
+#### 1. Android Native Test
+1.  **Sync Project**:
+    ```bash
+    npx cap sync android
+    ```
+2.  **Open in Android Studio**:
+    ```bash
+    npx cap open android
+    ```
+3.  **Run App**:
+    *   Connect your Android device via USB (ensure USB Debugging is on).
+    *   Or create an Android Emulator in Android Studio.
+    *   Click the **Run** (Play) button in Android Studio.
+
+#### 2. iOS Native Test (Mac Only)
+1.  **Sync Project**:
+    ```bash
+    npx cap sync ios
+    ```
+2.  **Open in Xcode**:
+    ```bash
+    npx cap open ios
+    ```
+3.  **Signing Setup**:
+    *   In Xcode, click on the **App** project in the left navigator.
+    *   Go to **Signing & Capabilities**.
+    *   Select your **Team** (you can use a free Apple ID personal team).
+4.  **Run App**:
+    *   Connect your iPhone via USB.
+    *   Select your device from the top toolbar.
+    *   Click the **Run** (Play) button.
+
