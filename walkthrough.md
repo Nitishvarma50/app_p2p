@@ -15,7 +15,7 @@ The signaling server must be online for devices to find each other.
     *   **Build Command**: `pip install -r requirements.txt`
     *   **Start Command**: `python server.py`
 6.  Click **Create Web Service**.
-7.  **Copy the URL** (e.g., `https://p2p-transfer.onrender.com`).
+7.  **Copy the URL** (e.g., `https://app-p2p.onrender.com`).
 
 ### Option B: Custom Domain (https://www.airsetu.in)
 If you want to use your own domain:

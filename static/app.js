@@ -4,8 +4,19 @@
  */
 
 // --- Configuration ---
-// Replace with your deployed server URL (e.g., 'https://your-app.onrender.com')
-const SIGNALING_SERVER_URL = '';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { App } from '@capacitor/app';
+import { AndroidForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+
+const RENDER_URL = 'https://app-p2p.onrender.com/';
+let SIGNALING_SERVER_URL = RENDER_URL;
+
+// If running locally in Electron, use the local server (localhost:8080)
+// This allows you to test locally without deploying, while Android uses the Render URL.
+if (navigator.userAgent.indexOf('Electron') > -1) {
+    console.log('Running in Electron: Using local server');
+    SIGNALING_SERVER_URL = '';
+}
 
 // --- UI Manager ---
 const UI = {
@@ -203,7 +214,15 @@ const Network = {
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => UI.updateConnectionStatus('Server Connected', 'connected');
-        this.socket.onclose = () => UI.updateConnectionStatus('Disconnected', 'error');
+        this.socket.onclose = (e) => {
+            UI.updateConnectionStatus('Disconnected', 'error');
+            console.error('WebSocket Closed:', e);
+            UI.showToast(`Connection lost: Code ${e.code}, Reason: ${e.reason || 'Unknown'}`, 'error');
+        };
+        this.socket.onerror = (e) => {
+            console.error('WebSocket Error:', e);
+            UI.showToast('Connection Error. Check console/logs.', 'error');
+        };
         this.socket.onmessage = (e) => this.handleSignalingMessage(JSON.parse(e.data));
     },
 
@@ -464,6 +483,41 @@ const FileTransfer = {
     async saveFile() {
         const { metadata, buffer, mode, writable } = this.incoming;
 
+        // Check if running in Capacitor (Native)
+        const isNative = window.Capacitor && window.Capacitor.isNative;
+
+        if (isNative) {
+            try {
+                // Convert buffer to base64
+                const blob = new Blob(buffer);
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = async () => {
+                    const base64data = reader.result;
+                    try {
+                        await Filesystem.writeFile({
+                            path: metadata.name,
+                            data: base64data,
+                            directory: Directory.Documents,
+                        });
+                        UI.updateProgress(this.incoming.id, 100, 'Saved to Documents');
+                        UI.showToast(`Saved ${metadata.name} to Documents`, 'success');
+                    } catch (e) {
+                        console.error('Filesystem Write Error:', e);
+                        UI.showToast('Failed to save file', 'error');
+                    }
+                };
+            } catch (e) {
+                console.error('Save Error:', e);
+                UI.showToast('Error saving file', 'error');
+            }
+
+            // Reset
+            this.incoming.buffer = [];
+            this.incoming.metadata = null;
+            return;
+        }
+
         if (mode === 'stream' && writable) {
             await writable.close();
             UI.updateProgress(this.incoming.id, 100, 'Saved');
@@ -493,4 +547,31 @@ const FileTransfer = {
 document.addEventListener('DOMContentLoaded', () => {
     UI.init();
     Network.init();
+
+    // App State Handling
+    App.addListener('appStateChange', ({ isActive }) => {
+        console.log('App state changed. Is active?', isActive);
+        if (isActive) {
+            // App came to foreground
+            if (Network.socket && Network.socket.readyState === WebSocket.CLOSED) {
+                console.log('Reconnecting WebSocket...');
+                Network.connectSignaling();
+            }
+        }
+    });
+
+    // Start Foreground Service (Android only)
+    if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.getPlatform() === 'android') {
+        try {
+            AndroidForegroundService.startForegroundService({
+                id: 123,
+                title: "P2P File Transfer",
+                body: "Running in background to keep connection alive",
+                smallIcon: "ic_launcher", // Ensure this resource exists
+            }).then(() => console.log('Foreground Service Started'))
+                .catch(err => console.error('Failed to start Foreground Service', err));
+        } catch (e) {
+            console.error('Error calling Foreground Service', e);
+        }
+    }
 });

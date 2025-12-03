@@ -52,8 +52,8 @@ Run the app locally on your machine.
 To use the app across different networks (e.g., 4G to WiFi), you need to host the signaling server.
 
 **Server:**
-*   Deploy `server.py` to a cloud provider like Render or Heroku.
-*   Update `static/app.js` with your new server URL.
+*   **Signaling Server**: The app is configured to use `https://app-p2p.onrender.com/` by default.
+*   **Local Development**: If running in Electron, it will default to localhost.
 
 **Native Apps:**
 *   **iOS/Android**:

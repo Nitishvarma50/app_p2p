@@ -1,6 +1,6 @@
 {
     "appId": "com.p2p.filetransfer",
     "appName": "P2P Transfer",
-    "webDir": "static",
+    "webDir": "dist",
     "bundledWebRuntime": false
 }

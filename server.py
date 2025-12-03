@@ -20,7 +20,12 @@ logger = logging.getLogger("P2P-Server")
 rooms = {}
 
 async def index(request):
-    return web.FileResponse('./static/index.html')
+    return web.FileResponse('./dist/index.html')
+
+# ... (rest of the file)
+
+# Serve static files from root (must be last to avoid shadowing API)
+app.router.add_static('/', './dist')
 
 async def get_config(request):
     """
@@ -41,7 +46,7 @@ async def websocket_handler(request):
     if request.headers.get('Origin') != 'null':
          pass # Handled by CORS setup, but WS upgrade might need explicit check if strict
     
-    await ws.prepare(request)
+    await ws.prepare(request, heartbeat=30.0)
 
     peer_id = str(uuid.uuid4())
     current_room = None
@@ -145,11 +150,12 @@ cors = aiohttp_cors.setup(app, defaults={
 
 # Add routes
 app.router.add_get('/', index)
-app.router.add_static('/static', './static')
-
 # API Routes (Need CORS)
 cors.add(app.router.add_get('/config', get_config))
 cors.add(app.router.add_get('/ws', websocket_handler))
+
+# Serve static files from root (must be last to avoid shadowing API)
+app.router.add_static('/', './dist')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="P2P File Transfer Server")
