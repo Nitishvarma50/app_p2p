@@ -24,8 +24,7 @@ async def index(request):
 
 # ... (rest of the file)
 
-# Serve static files from root (must be last to avoid shadowing API)
-app.router.add_static('/', './dist')
+
 
 async def get_config(request):
     """
