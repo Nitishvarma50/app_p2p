@@ -40,12 +40,12 @@ async def get_config(request):
     })
 
 async def websocket_handler(request):
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(heartbeat=30.0)
     # Allow all origins for native apps
     if request.headers.get('Origin') != 'null':
          pass # Handled by CORS setup, but WS upgrade might need explicit check if strict
     
-    await ws.prepare(request, heartbeat=30.0)
+    await ws.prepare(request)
 
     peer_id = str(uuid.uuid4())
     current_room = None
