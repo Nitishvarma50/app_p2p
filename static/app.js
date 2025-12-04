@@ -6,7 +6,7 @@
 // --- Configuration ---
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { App } from '@capacitor/app';
-import { AndroidForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
 
 const RENDER_URL = 'https://app-p2p.onrender.com/';
 let SIGNALING_SERVER_URL = RENDER_URL;
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start Foreground Service (Android only)
     if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.getPlatform() === 'android') {
         try {
-            AndroidForegroundService.startForegroundService({
+            ForegroundService.startForegroundService({
                 id: 123,
                 title: "P2P File Transfer",
                 body: "Running in background to keep connection alive",
