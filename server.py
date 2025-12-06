@@ -59,34 +59,52 @@ async def websocket_handler(request):
                     data = json.loads(msg.data)
                     action = data.get('action')
 
-                    if action == 'join':
-                        room_id = data.get('room')
-                        if not room_id:
-                            room_id = str(uuid.uuid4())[:8]
-                        
+                    if action == 'create':
+                        room_id = str(uuid.uuid4())[:8]
                         current_room = room_id
-                        if current_room not in rooms:
-                            rooms[current_room] = {}
-                        
+                        rooms[current_room] = {}
                         rooms[current_room][peer_id] = ws
                         
-                        logger.info(f"Peer {peer_id} joined room {current_room}. Room size: {len(rooms[current_room])}")
+                        logger.info(f"Peer {peer_id} created room {current_room}")
 
-                        # Notify the peer of their ID and the room they joined
                         await ws.send_json({
                             'type': 'joined',
                             'peer_id': peer_id,
                             'room_id': current_room,
-                            'peers': [p for p in rooms[current_room] if p != peer_id]
+                            'peers': []
                         })
+
+                    elif action == 'join':
+                        room_id = data.get('room')
                         
-                        # Notify other peers in the room
-                        for pid, socket in rooms[current_room].items():
-                            if pid != peer_id:
-                                await socket.send_json({
-                                    'type': 'peer-joined',
-                                    'peer_id': peer_id
-                                })
+                        if room_id and room_id in rooms:
+                            current_room = room_id
+                            rooms[current_room][peer_id] = ws
+                            
+                            logger.info(f"Peer {peer_id} joined room {current_room}")
+
+                            # Notify the peer of their ID and the room they joined
+                            await ws.send_json({
+                                'type': 'joined',
+                                'peer_id': peer_id,
+                                'room_id': current_room,
+                                'peers': [p for p in rooms[current_room] if p != peer_id]
+                            })
+                            
+                            # Notify other peers in the room
+                            for pid, socket in rooms[current_room].items():
+                                if pid != peer_id:
+                                    await socket.send_json({
+                                        'type': 'peer-joined',
+                                        'peer_id': peer_id
+                                    })
+                        else:
+                            # Room not found or invalid
+                            logger.warning(f"Join failed: Room {room_id} not found")
+                            await ws.send_json({
+                                'type': 'error',
+                                'message': 'Room not found'
+                            })
 
                     elif action == 'signal':
                         target_peer = data.get('target')

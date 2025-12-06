@@ -35,6 +35,7 @@ const UI = {
         toastContainer: document.getElementById('toastContainer'),
         transferCount: document.getElementById('transferCount'),
         emptyState: document.getElementById('emptyState'),
+        saveLocation: document.getElementById('saveLocation'), // New Element
     },
 
     init() {
@@ -123,6 +124,10 @@ const UI = {
         const item = document.createElement('div');
         item.className = 'file-item';
         item.id = `file-${fileId}`;
+
+        // Auto-save logic: No buttons needed for download
+        // But if type is upload, we assume auto-start too.
+
         item.innerHTML = `
             <div class="file-icon">
                 <span class="material-icons-round">${type === 'upload' ? 'arrow_upward' : 'arrow_downward'}</span>
@@ -131,7 +136,7 @@ const UI = {
                 <div class="file-name" title="${name}">${name}</div>
                 <div class="file-meta">
                     <span>${this.formatSize(size)}</span>
-                    <span class="status">0%</span>
+                    <span class="status">${type === 'download' ? 'Waiting...' : '0%'}</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: 0%"></div>
@@ -169,6 +174,12 @@ const UI = {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    getSaveDirectory() {
+        // Default to Downloads if element missing (e.g. web)
+        if (!this.elements.saveLocation) return 'Downloads';
+        return this.elements.saveLocation.value;
     }
 };
 
@@ -181,6 +192,7 @@ const Network = {
     currentRoom: null,
     isInitiator: false,
     iceServers: [],
+    heartbeatInterval: null,
 
     async init() {
         try {
@@ -228,7 +240,7 @@ const Network = {
 
     createRoom() {
         this.isInitiator = true;
-        this.socket.send(JSON.stringify({ action: 'join' }));
+        this.socket.send(JSON.stringify({ action: 'create' }));
     },
 
     joinRoom(roomId) {
@@ -272,6 +284,8 @@ const Network = {
                 }
                 UI.updateConnectionStatus('Peer Left', 'error');
                 UI.showToast('Peer disconnected', 'error');
+                FileTransfer.releaseWakeLock();
+                this.stopHeartbeat();
                 break;
         }
     },
@@ -291,8 +305,12 @@ const Network = {
             if (state === 'connected') {
                 UI.updateConnectionStatus('Peer Connected', 'connected');
                 UI.showToast('Secure connection established', 'success');
+                FileTransfer.requestWakeLock();
+                this.startHeartbeat();
             } else if (state === 'disconnected' || state === 'failed') {
                 UI.updateConnectionStatus('Connection Lost', 'error');
+                FileTransfer.releaseWakeLock();
+                this.stopHeartbeat();
             }
         };
 
@@ -347,6 +365,22 @@ const Network = {
             return true;
         }
         return false;
+    },
+
+    startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatInterval = setInterval(() => {
+            if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                this.dataChannel.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 5000); // Send ping every 5 seconds
+    },
+
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
     }
 };
 
@@ -354,14 +388,15 @@ const Network = {
 const FileTransfer = {
     CHUNK_SIZE: 16 * 1024, // 16KB
     wakeLock: null,
-    incoming: {
-        buffer: [],
-        writable: null,
-        mode: 'blob', // 'blob' or 'stream'
-        receivedSize: 0,
-        metadata: null,
-        startTime: 0
-    },
+
+    // Stores files waiting to be sent
+    pendingUploads: new Map(),
+
+    // Stores active downloads
+    activeDownloads: new Map(),
+
+    // Stores metadata for pending downloads (unused in auto-save mode)
+    pendingDownloads: new Map(),
 
     async requestWakeLock() {
         if ('wakeLock' in navigator) {
@@ -380,24 +415,55 @@ const FileTransfer = {
         }
     },
 
-    processFiles(files) {
-        this.requestWakeLock();
-        Array.from(files).forEach(file => this.sendFile(file));
+    async processFiles(files) {
+        // Wake Lock is now managed by Network connection state
+        for (const file of Array.from(files)) {
+            await this.queueFile(file);
+        }
     },
 
-    async sendFile(file) {
+    async queueFile(file) {
+        const fileId = Date.now() + Math.random().toString(36).substr(2, 5);
+
+        // Store file for later sending
+        this.pendingUploads.set(fileId, file);
+
+        UI.addFileItem(fileId, file.name, file.size, 'upload');
+        UI.updateProgress(fileId, 0, 'Waiting for acceptance...');
+
         if (!Network.sendData(JSON.stringify({
             type: 'metadata',
+            fileId: fileId,
             name: file.name,
             size: file.size,
             fileType: file.type
         }))) {
             UI.showToast('Connection not ready', 'error');
-            return;
+            this.pendingUploads.delete(fileId);
         }
+    },
 
-        const fileId = Date.now() + Math.random().toString(36).substr(2, 5);
-        UI.addFileItem(fileId, file.name, file.size, 'upload');
+    async acceptFile(fileId, metadata) {
+        // Initialize active download state
+        this.activeDownloads.set(fileId, {
+            metadata,
+            buffer: [],
+            receivedSize: 0,
+            startTime: Date.now()
+        });
+
+        // Notify sender to start
+        Network.sendData(JSON.stringify({
+            type: 'accept',
+            fileId: fileId
+        }));
+
+        UI.updateProgress(fileId, 0, 'Downloading...');
+    },
+
+    async startTransfer(fileId) {
+        const file = this.pendingUploads.get(fileId);
+        if (!file) return;
 
         const reader = new FileReader();
         let offset = 0;
@@ -416,9 +482,9 @@ const FileTransfer = {
                     readSlice();
                 }
             } else {
-                Network.sendData(JSON.stringify({ type: 'end' }));
+                Network.sendData(JSON.stringify({ type: 'end', fileId: fileId }));
                 UI.updateProgress(fileId, 100, 'Completed');
-                this.releaseWakeLock();
+                this.pendingUploads.delete(fileId);
             }
         };
 
@@ -433,98 +499,83 @@ const FileTransfer = {
     async handleMessage(data) {
         if (typeof data === 'string') {
             const msg = JSON.parse(data);
+
+            if (msg.type === 'ping') return;
+
             if (msg.type === 'metadata') {
-                this.requestWakeLock();
-                this.incoming.metadata = msg;
-                this.incoming.receivedSize = 0;
-                this.incoming.startTime = Date.now();
-                this.incoming.id = Date.now(); // Temp ID
-
-                // Try File System Access API
-                if (window.showSaveFilePicker) {
-                    try {
-                        const handle = await window.showSaveFilePicker({
-                            suggestedName: msg.name,
-                        });
-                        this.incoming.writable = await handle.createWritable();
-                        this.incoming.mode = 'stream';
-                    } catch (e) {
-                        console.log('File Picker cancelled or failed, falling back to Blob', e);
-                        this.incoming.buffer = [];
-                        this.incoming.mode = 'blob';
-                    }
-                } else {
-                    this.incoming.buffer = [];
-                    this.incoming.mode = 'blob';
+                // AUTO-SAVE LOGIC:
+                UI.addFileItem(msg.fileId, msg.name, msg.size, 'download');
+                // Automatically accept and start download
+                await this.acceptFile(msg.fileId, msg);
+            }
+            else if (msg.type === 'accept') {
+                // Sender received acceptance
+                this.startTransfer(msg.fileId);
+            }
+            else if (msg.type === 'end') {
+                const download = this.activeDownloads.get(msg.fileId);
+                if (download) {
+                    await this.saveFile(msg.fileId);
                 }
-
-                UI.addFileItem(this.incoming.id, msg.name, msg.size, 'download');
-            } else if (msg.type === 'end') {
-                await this.saveFile();
-                this.releaseWakeLock();
             }
         } else {
             // Binary Data
-            this.incoming.receivedSize += data.byteLength;
+            const activeKeys = Array.from(this.activeDownloads.keys());
+            if (activeKeys.length === 0) return;
 
-            if (this.incoming.mode === 'stream' && this.incoming.writable) {
-                await this.incoming.writable.write(data);
-            } else {
-                this.incoming.buffer.push(data);
-            }
+            const fileId = activeKeys[0]; // Assume the first one
+            const download = this.activeDownloads.get(fileId);
 
-            if (this.incoming.metadata) {
-                const percent = (this.incoming.receivedSize / this.incoming.metadata.size) * 100;
-                UI.updateProgress(this.incoming.id, percent);
-            }
+            download.receivedSize += data.byteLength;
+            download.buffer.push(data);
+
+            const percent = (download.receivedSize / download.metadata.size) * 100;
+            UI.updateProgress(fileId, percent);
         }
     },
 
-    async saveFile() {
-        const { metadata, buffer, mode, writable } = this.incoming;
+    async saveFile(fileId) {
+        const download = this.activeDownloads.get(fileId);
+        if (!download) return;
+
+        const { metadata, buffer } = download;
 
         // Check if running in Capacitor (Native)
         const isNative = window.Capacitor && window.Capacitor.isNative;
 
         if (isNative) {
             try {
-                // Convert buffer to base64
+                // Create Blob from all chunks
                 const blob = new Blob(buffer);
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = async () => {
-                    const base64data = reader.result;
+
+                try {
+                    // SAVE TO SELECTED LOCATION
+                    const targetDir = UI.getSaveDirectory();
+                    if (targetDir === 'Downloads') {
+                        await this.writeBlobSmartly(metadata.name, blob, Directory.Downloads);
+                    } else {
+                        await this.writeBlobSmartly(metadata.name, blob, Directory.Documents);
+                    }
+                    UI.updateProgress(fileId, 100, `Saved to ${targetDir}`);
+                    UI.showToast(`Saved ${metadata.name} to ${targetDir}`, 'success');
+                } catch (e) {
+                    console.log('Primary save failed, trying fallback...', e);
+                    // Fallback to Documents
                     try {
-                        await Filesystem.writeFile({
-                            path: metadata.name,
-                            data: base64data,
-                            directory: Directory.Documents,
-                        });
-                        UI.updateProgress(this.incoming.id, 100, 'Saved to Documents');
+                        await this.writeBlobSmartly(metadata.name, blob, Directory.Documents);
+                        UI.updateProgress(fileId, 100, 'Saved to Documents');
                         UI.showToast(`Saved ${metadata.name} to Documents`, 'success');
-                    } catch (e) {
-                        console.error('Filesystem Write Error:', e);
+                    } catch (err) {
+                        console.error('Filesystem Write Error:', err);
                         UI.showToast('Failed to save file', 'error');
                     }
-                };
+                }
             } catch (e) {
                 console.error('Save Error:', e);
                 UI.showToast('Error saving file', 'error');
             }
-
-            // Reset
-            this.incoming.buffer = [];
-            this.incoming.metadata = null;
-            return;
-        }
-
-        if (mode === 'stream' && writable) {
-            await writable.close();
-            UI.updateProgress(this.incoming.id, 100, 'Saved');
-            UI.showToast(`Received ${metadata.name}`, 'success');
-            this.incoming.writable = null;
-            this.incoming.metadata = null;
         } else {
+            // WEB: Auto-download to browser defaults (Downloads)
             const blob = new Blob(buffer, { type: metadata.fileType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -533,15 +584,64 @@ const FileTransfer = {
             a.click();
             URL.revokeObjectURL(url);
 
-            UI.updateProgress(this.incoming.id, 100, 'Saved');
-            UI.showToast(`Received ${metadata.name}`, 'success');
-
-            // Reset
-            this.incoming.buffer = [];
-            this.incoming.metadata = null;
+            UI.updateProgress(fileId, 100, 'Saved');
+            UI.showToast(`Saved ${metadata.name}`, 'success');
         }
+
+        this.activeDownloads.delete(fileId);
+    },
+
+    async writeBlobSmartly(filename, blob, directory) {
+        const CHUNK_SIZE = 512 * 1024; // 512KB chunks to separate binder transactions
+        const totalSize = blob.size;
+        let offset = 0;
+        let isFirstChunk = true;
+
+        while (offset < totalSize) {
+            const chunkBlob = blob.slice(offset, offset + CHUNK_SIZE);
+            const base64Data = await this.blobToBase64(chunkBlob);
+
+            if (isFirstChunk) {
+                await Filesystem.writeFile({
+                    path: filename,
+                    data: base64Data,
+                    directory: directory,
+                    recursive: true
+                });
+                isFirstChunk = false;
+            } else {
+                await Filesystem.appendFile({
+                    path: filename,
+                    data: base64Data,
+                    directory: directory
+                });
+            }
+
+            offset += CHUNK_SIZE;
+
+            // Optional: Update progress for saving phase if needed, 
+            // but we usually treat 'save' as the final 100% step.
+        }
+    },
+
+    blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result;
+                // Strip the data URL prefix (e.g. "data:application/octet-stream;base64,")
+                const base64 = result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
     }
 };
+
+// Expose FileTransfer to window for UI onclick handlers
+window.FileTransfer = FileTransfer;
+window.Network = Network;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
