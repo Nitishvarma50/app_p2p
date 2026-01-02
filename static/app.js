@@ -6,6 +6,7 @@
 // --- Configuration ---
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { App } from '@capacitor/app';
+import { Share } from '@capacitor/share';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
 
 const RENDER_URL = 'https://app-p2p.onrender.com/';
@@ -176,10 +177,12 @@ const UI = {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     },
 
-    getSaveDirectory() {
-        // Default to Downloads if element missing (e.g. web)
-        if (!this.elements.saveLocation) return 'Downloads';
-        return this.elements.saveLocation.value;
+    formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 };
 
@@ -240,7 +243,7 @@ const Network = {
 
     createRoom() {
         this.isInitiator = true;
-        this.socket.send(JSON.stringify({ action: 'create' }));
+        this.socket.send(JSON.stringify({ action: 'join' }));
     },
 
     joinRoom(roomId) {
@@ -548,25 +551,39 @@ const FileTransfer = {
                 // Create Blob from all chunks
                 const blob = new Blob(buffer);
 
+                // For Android "Save As" functionality, we use the Share API.
+                // We write the file to the Cache directory first, then Share it.
+                // This lets the user pick "Save to..." or any app they want.
+
                 try {
-                    // SAVE TO SELECTED LOCATION
-                    const targetDir = UI.getSaveDirectory();
-                    if (targetDir === 'Downloads') {
-                        await this.writeBlobSmartly(metadata.name, blob, Directory.Downloads);
-                    } else {
-                        await this.writeBlobSmartly(metadata.name, blob, Directory.Documents);
-                    }
-                    UI.updateProgress(fileId, 100, `Saved to ${targetDir}`);
-                    UI.showToast(`Saved ${metadata.name} to ${targetDir}`, 'success');
+                    const tempPath = `temp_${Date.now()}_${metadata.name}`;
+                    await this.writeBlobSmartly(tempPath, blob, Directory.Cache);
+
+                    const uriResult = await Filesystem.getUri({
+                        path: tempPath,
+                        directory: Directory.Cache
+                    });
+
+                    await Share.share({
+                        title: 'Save File',
+                        text: `Saving ${metadata.name}`,
+                        url: uriResult.uri,
+                        dialogTitle: 'Save File To...'
+                    });
+
+                    UI.updateProgress(fileId, 100, 'Shared/Saved');
+                    UI.showToast('File opened in Share sheet', 'success');
+
+                    // Cleanup temp file later if possible, but Cache is auto-cleaned by OS eventually.
                 } catch (e) {
-                    console.log('Primary save failed, trying fallback...', e);
-                    // Fallback to Documents
+                    console.error('Share Error:', e);
+                    // Fallback to Downloads if Share fails
                     try {
-                        await this.writeBlobSmartly(metadata.name, blob, Directory.Documents);
-                        UI.updateProgress(fileId, 100, 'Saved to Documents');
-                        UI.showToast(`Saved ${metadata.name} to Documents`, 'success');
+                        await this.writeBlobSmartly(metadata.name, blob, Directory.Downloads);
+                        UI.updateProgress(fileId, 100, 'Saved to Downloads');
+                        UI.showToast(`Saved ${metadata.name} to Downloads`, 'success');
                     } catch (err) {
-                        console.error('Filesystem Write Error:', err);
+                        console.error('Fallback Save Error:', err);
                         UI.showToast('Failed to save file', 'error');
                     }
                 }

@@ -8,7 +8,8 @@
         "build": "vite build",
         "build:windows": "electron-builder --win",
         "build:ios": "npx cap add ios && npx cap open ios",
-        "build:android": "npm run build && npx cap sync && npx cap open android"
+        "build:android": "npm run build && npx cap sync && npx cap open android",
+        "deploy": "npx wrangler pages deploy dist --project-name p2p-file-transfer"
     },
     "keywords": [
         "p2p",
@@ -23,6 +24,7 @@
         "@capacitor/core": "^5.0.0",
         "@capacitor/filesystem": "^5.0.0",
         "@capacitor/ios": "^5.0.0",
+        "@capacitor/share": "^5.0.8",
         "@capawesome-team/capacitor-android-foreground-service": "^5.0.0"
     },
     "devDependencies": {
