@@ -1,7 +1,7 @@
 {
     "name": "airsetu",
     "version": "1.0.0",
-    "description": "Secure AIRSETU File Transfer App",
+    "description": "Secure Airsetu File Transfer App",
     "main": "electron-main.js",
     "scripts": {
         "start": "electron .",

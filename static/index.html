@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIRSETU - Secure File Transfer</title>
+    <title>Airsetu - Secure File Transfer</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,7 +27,7 @@
                 <div class="logo-icon">
                     <span class="material-icons-round">share</span>
                 </div>
-                <h1>AIRSETU</h1>
+                <h1>Airsetu</h1>
                 <p>Transfer files directly between devices with unlimited speed. No servers, no limits, just pure
                     peer-to-peer fast transfer.</p>
             </div>
@@ -45,7 +45,8 @@
             <section id="joinScreen" class="screen active">
                 <div class="glass-card hero-card">
                     <h2>Share Files Instantly</h2>
-                    <p class="subtitle">Secure, peer-to-peer transfer. No size limits. No cloud.</p>
+                    <p class="subtitle">Transfer files directly between devices with unlimited speed. No servers, no
+                        limits, just pure peer-to-peer fast transfer.</p>
 
                     <div class="actions-container">
                         <button id="createBtn" class="btn primary large">
@@ -76,6 +77,22 @@
                         <div class="code-display" id="roomIdDisplay" title="Click to copy">
                             <span class="code-text">...</span>
                             <span class="material-icons-round copy-icon">content_copy</span>
+                        </div>
+                    </div>
+                    <div class="room-instructions"
+                        style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <p style="margin-bottom: 0.5rem;">Share this Room ID with the other person to connect.</p>
+                        <div class="steps-to-share"
+                            style="text-align: left; background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px;">
+                            <strong style="display: block; margin-bottom: 0.5rem; color: var(--text-primary);">How to
+                                Share:</strong>
+                            <ol
+                                style="margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                                <li>Copy the <strong>Room ID</strong> above.</li>
+                                <li>Send it to the receiving device.</li>
+                                <li>Ask them to enter it on the <strong>Join Screen</strong>.</li>
+                                <li>Once connected, drag & drop files below!</li>
+                            </ol>
                         </div>
                     </div>
                     <button id="leaveBtn" class="btn danger small" title="Leave Room">
