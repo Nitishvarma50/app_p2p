@@ -389,7 +389,7 @@ const Network = {
 
 // --- File Transfer Manager ---
 const FileTransfer = {
-    CHUNK_SIZE: 16 * 1024, // 16KB
+    CHUNK_SIZE: 65536, // 64KB
     wakeLock: null,
 
     // Stores files waiting to be sent
@@ -468,35 +468,60 @@ const FileTransfer = {
         const file = this.pendingUploads.get(fileId);
         if (!file) return;
 
-        const reader = new FileReader();
+        const channel = Network.dataChannel;
+        // High watermark: 16MB. If buffer > 16MB, we stop pushing.
+        const MAX_BUFFERED_AMOUNT = 16 * 1024 * 1024;
+
+        // Set low watermark (threshold) for the event
+        channel.bufferedAmountLowThreshold = this.CHUNK_SIZE;
+
         let offset = 0;
+        const reader = new FileReader();
 
-        reader.onload = (e) => {
-            Network.sendData(e.target.result);
-            offset += e.target.result.byteLength;
+        const sendChunk = () => {
+            if (offset >= file.size) return; // Done inside loop, but safety check
 
-            const percent = (offset / file.size) * 100;
-            UI.updateProgress(fileId, percent);
-
-            if (offset < file.size) {
-                if (Network.dataChannel.bufferedAmount > 16 * 1024 * 1024) {
-                    setTimeout(readSlice, 50);
-                } else {
-                    readSlice();
-                }
-            } else {
-                Network.sendData(JSON.stringify({ type: 'end', fileId: fileId }));
-                UI.updateProgress(fileId, 100, 'Completed');
-                this.pendingUploads.delete(fileId);
-            }
-        };
-
-        const readSlice = () => {
             const slice = file.slice(offset, offset + this.CHUNK_SIZE);
             reader.readAsArrayBuffer(slice);
         };
 
-        readSlice();
+        reader.onload = (e) => {
+            const data = e.target.result;
+
+            try {
+                Network.sendData(data);
+                offset += data.byteLength;
+
+                const percent = (offset / file.size) * 100;
+                UI.updateProgress(fileId, percent);
+
+                if (offset < file.size) {
+                    if (channel.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+                        // Wait for buffer to drain
+                        const startWait = Date.now();
+                        const onLowBuffer = () => {
+                            channel.removeEventListener('bufferedamountlow', onLowBuffer);
+                            sendChunk();
+                        };
+                        channel.addEventListener('bufferedamountlow', onLowBuffer);
+                    } else {
+                        // Buffer is fine, keep pushing immediately
+                        sendChunk();
+                    }
+                } else {
+                    // Finished
+                    Network.sendData(JSON.stringify({ type: 'end', fileId: fileId }));
+                    UI.updateProgress(fileId, 100, 'Completed');
+                    this.pendingUploads.delete(fileId);
+                }
+            } catch (err) {
+                console.error("Error sending chunk:", err);
+                UI.showToast("Transfer Error", "error");
+            }
+        };
+
+        // Start the loop
+        sendChunk();
     },
 
     async handleMessage(data) {
