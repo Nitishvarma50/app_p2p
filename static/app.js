@@ -1,5 +1,5 @@
 /**
- * P2P File Transfer App
+ * AIRSETU File Transfer App
  * Modular architecture for better maintainability
  */
 
@@ -707,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             ForegroundService.startForegroundService({
                 id: 123,
-                title: "P2P File Transfer",
+                title: "AIRSETU",
                 body: "Running in background to keep connection alive",
                 smallIcon: "ic_launcher", // Ensure this resource exists
             }).then(() => console.log('Foreground Service Started'))

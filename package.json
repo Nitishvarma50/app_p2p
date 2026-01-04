@@ -1,7 +1,7 @@
 {
-    "name": "p2p-file-transfer",
+    "name": "airsetu",
     "version": "1.0.0",
-    "description": "Secure P2P File Transfer App",
+    "description": "Secure AIRSETU File Transfer App",
     "main": "electron-main.js",
     "scripts": {
         "start": "electron .",

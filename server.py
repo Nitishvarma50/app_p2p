@@ -13,7 +13,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger("P2P-Server")
+logger = logging.getLogger("AIRSETU-Server")
 
 # Store active rooms and peers
 # Structure: { room_id: { peer_id: websocket } }
@@ -157,7 +157,7 @@ cors.add(app.router.add_get('/ws', websocket_handler))
 app.router.add_static('/', './dist')
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="P2P File Transfer Server")
+    parser = argparse.ArgumentParser(description="AIRSETU File Transfer Server")
     parser.add_argument('--cert', help="Path to SSL certificate file (PEM)")
     parser.add_argument('--key', help="Path to SSL key file (PEM)")
     parser.add_argument('--port', type=int, default=8080, help="Port to run the server on")
