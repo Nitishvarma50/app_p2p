@@ -533,7 +533,6 @@ const FileTransfer = {
             if (msg.type === 'metadata') {
                 // AUTO-SAVE LOGIC:
                 UI.addFileItem(msg.fileId, msg.name, msg.size, 'download');
-                // Automatically accept and start download
                 await this.acceptFile(msg.fileId, msg);
             }
             else if (msg.type === 'accept') {
@@ -661,7 +660,7 @@ const FileTransfer = {
 
             offset += CHUNK_SIZE;
 
-            // Optional: Update progress for saving phase if needed, 
+            // Optional: Update progress for saving phase if needed,
             // but we usually treat 'save' as the final 100% step.
         }
     },
