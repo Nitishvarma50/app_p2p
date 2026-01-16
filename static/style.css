@@ -9,6 +9,7 @@
     --text-secondary: #a0a0a0;
     --error-color: #CF6679;
     --success-color: #00E676;
+    --warning-color: #FFB74D;
     --border-radius: 16px;
     --glass-border: 1px solid rgba(255, 255, 255, 0.1);
     --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
@@ -159,6 +160,11 @@ header {
 .status-dot.connected {
     background-color: var(--success-color);
     box-shadow: 0 0 8px var(--success-color);
+}
+
+.status-dot.warning {
+    background-color: var(--warning-color);
+    box-shadow: 0 0 8px var(--warning-color);
 }
 
 /* Glass Card */
@@ -620,6 +626,7 @@ input:focus {
 }
 
 .settings-select option {
-    background: #1e1e24; /* Dark gray for dropdown options */
+    background: #1e1e24;
+    /* Dark gray for dropdown options */
     color: white;
 }

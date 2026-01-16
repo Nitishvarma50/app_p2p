@@ -20,7 +20,7 @@ logger = logging.getLogger("Airsetu-Server")
 rooms = {}
 
 async def index(request):
-    return web.FileResponse('./dist/index.html')
+    return web.FileResponse('./static/index.html')
 
 # ... (rest of the file)
 
@@ -88,6 +88,12 @@ async def websocket_handler(request):
                                     'peer_id': peer_id
                                 })
 
+                    elif action == 'leave':
+                        if current_room and peer_id in rooms.get(current_room, {}):
+                            await cleanup_peer(peer_id, current_room)
+                            current_room = None
+                            logger.info(f"Peer {peer_id} explicitly left")
+
                     elif action == 'signal':
                         target_peer = data.get('target')
                         payload = data.get('payload')
@@ -112,29 +118,31 @@ async def websocket_handler(request):
                 logger.error(f'WebSocket connection closed with exception {ws.exception()}')
 
     finally:
-        if current_room and current_room in rooms:
-            if peer_id in rooms[current_room]:
-                del rooms[current_room][peer_id]
-                logger.info(f"Peer {peer_id} left room {current_room}")
-                
-                # Notify others that peer left
-                for pid, socket in rooms[current_room].items():
-                    try:
-                        await socket.send_json({
-                            'type': 'peer-left',
-                            'peer_id': peer_id
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to notify peer {pid}: {e}")
-                
-                # Clean up empty rooms
-                if not rooms[current_room]:
-                    del rooms[current_room]
-                    logger.info(f"Room {current_room} deleted (empty)")
-        
+        await cleanup_peer(peer_id, current_room)
         logger.info(f"Peer {peer_id} disconnected")
 
     return ws
+
+async def cleanup_peer(peer_id, current_room):
+    if current_room and current_room in rooms:
+        if peer_id in rooms[current_room]:
+            del rooms[current_room][peer_id]
+            logger.info(f"Peer {peer_id} removed from room {current_room}")
+            
+            # Notify others that peer left
+            for pid, socket in rooms[current_room].items():
+                try:
+                    await socket.send_json({
+                        'type': 'peer-left',
+                        'peer_id': peer_id
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to notify peer {pid}: {e}")
+            
+            # Clean up empty rooms
+            if not rooms[current_room]:
+                del rooms[current_room]
+                logger.info(f"Room {current_room} deleted (empty)")
 
 app = web.Application()
 
@@ -154,7 +162,7 @@ cors.add(app.router.add_get('/config', get_config))
 cors.add(app.router.add_get('/ws', websocket_handler))
 
 # Serve static files from root (must be last to avoid shadowing API)
-app.router.add_static('/', './dist')
+app.router.add_static('/', './static')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Airsetu File Transfer Server")

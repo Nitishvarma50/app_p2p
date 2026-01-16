@@ -52,7 +52,7 @@ const UI = {
         });
 
         this.elements.leaveBtn.addEventListener('click', () => {
-            window.location.reload(); // Simple way to reset state
+            Network.leaveRoom();
         });
 
         this.elements.roomIdDisplay.addEventListener('click', () => {
@@ -99,6 +99,10 @@ const UI = {
         dot.className = 'status-dot'; // Reset
         if (type === 'connected') dot.classList.add('connected');
         else if (type === 'error') dot.style.backgroundColor = 'var(--error-color)';
+        else if (type === 'warning') {
+            dot.classList.add('warning');
+            dot.style.backgroundColor = 'var(--warning-color)';
+        }
     },
 
     setRoomId(id) {
@@ -214,12 +218,21 @@ const Network = {
     },
 
     connectSignaling() {
+        if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+            return;
+        }
         let wsUrl;
         if (SIGNALING_SERVER_URL) {
             // Use configured URL, ensuring wss/ws protocol
-            const url = new URL(SIGNALING_SERVER_URL);
-            const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-            wsUrl = `${protocol}//${url.host}/ws`;
+            try {
+                const url = new URL(SIGNALING_SERVER_URL);
+                const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${url.host}/ws`;
+            } catch (e) {
+                console.error("Invalid SIGNALING_SERVER_URL, falling back:", e);
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${window.location.host}/ws`;
+            }
         } else {
             // Fallback to local relative path
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -248,7 +261,23 @@ const Network = {
 
     joinRoom(roomId) {
         this.isInitiator = false;
-        this.socket.send(JSON.stringify({ action: 'join', room: roomId }));
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({ action: 'join', room: roomId }));
+        } else {
+            UI.showToast('Server not connected. Reconnecting...', 'warning');
+            this.connectSignaling();
+        }
+    },
+
+    leaveRoom() {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({ action: 'leave' }));
+        }
+        if (this.peerConnection) {
+            this.peerConnection.close();
+            this.peerConnection = null;
+        }
+        window.location.reload();
     },
 
     async handleSignalingMessage(msg) {
@@ -294,6 +323,9 @@ const Network = {
     },
 
     async createPeerConnection(targetPeerId) {
+        if (this.peerConnection) {
+            this.peerConnection.close();
+        }
         this.peerConnection = new RTCPeerConnection({ iceServers: this.iceServers });
 
         this.peerConnection.onicecandidate = (e) => {
@@ -310,8 +342,12 @@ const Network = {
                 UI.showToast('Secure connection established', 'success');
                 FileTransfer.requestWakeLock();
                 this.startHeartbeat();
-            } else if (state === 'disconnected' || state === 'failed') {
+            } else if (state === 'disconnected') {
+                UI.updateConnectionStatus('Peer Disconnected (WAITING)', 'warning');
+                console.log('Peer disconnected, waiting for possible reconnection or failure');
+            } else if (state === 'failed' || state === 'closed') {
                 UI.updateConnectionStatus('Connection Lost', 'error');
+                UI.showToast('Peer connection lost permanently', 'error');
                 FileTransfer.releaseWakeLock();
                 this.stopHeartbeat();
             }
